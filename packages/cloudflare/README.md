@@ -27,7 +27,7 @@ You can use [`create-next-app`](https://nextjs.org/docs/pages/api-reference/cli/
   compatibility_flags = ["nodejs_compat"]
 
   # Use the new Workers + Assets to host the static frontend files
-  experimental_assets = { directory = ".worker-next/assets", binding = "ASSETS" }
+  assets = { directory = ".worker-next/assets", binding = "ASSETS" }
   ```
 
 You can enable Incremental Static Regeneration ([ISR](https://nextjs.org/docs/app/building-your-application/data-fetching/incremental-static-regeneration)) by adding a KV binding named `NEXT_CACHE_WORKERS_KV` to your `wrangler.toml`:
