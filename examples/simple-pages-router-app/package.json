@@ -1,0 +1,30 @@
+{
+  "name": "simple-pages-router-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "build:worker": "pnpm cloudflare",
+    "dev:worker": "wrangler dev --port 8773",
+    "preview:worker": "pnpm build:worker && pnpm dev:worker",
+    "e2e": "playwright test -c e2e/playwright.config.ts",
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv"
+  },
+  "dependencies": {
+    "react": "^18",
+    "react-dom": "^18",
+    "next": "14.2.13"
+  },
+  "devDependencies": {
+    "@opennextjs/cloudflare": "workspace:*",
+    "typescript": "^5",
+    "@types/node": "catalog:",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "@playwright/test": "catalog:",
+    "wrangler": "catalog:"
+  }
+}

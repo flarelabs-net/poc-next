@@ -1,0 +1,10 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "api"
+main = ".worker-next/index.mjs"
+compatibility_date = "2024-09-16"
+compatibility_flags = ["nodejs_compat_v2"]
+
+assets = { directory = ".worker-next/assets", binding = "ASSETS" }
+
+[vars]
+hello = 'Hello World from the cloudflare context!'
