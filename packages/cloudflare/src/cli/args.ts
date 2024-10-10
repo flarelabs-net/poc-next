@@ -5,9 +5,10 @@ import { resolve } from "node:path";
 export function getArgs(): {
   skipBuild: boolean;
   outputDir?: string;
+  disableMinification?: boolean;
 } {
   const {
-    values: { skipBuild, output },
+    values: { skipBuild, output, disableMinification },
   } = parseArgs({
     options: {
       skipBuild: {
@@ -18,6 +19,9 @@ export function getArgs(): {
       output: {
         type: "string",
         short: "o",
+      },
+      disableMinification: {
+        type: "boolean",
       },
     },
     allowPositionals: false,
@@ -32,6 +36,7 @@ export function getArgs(): {
   return {
     outputDir,
     skipBuild: skipBuild || ["1", "true", "yes"].includes(String(process.env.SKIP_NEXT_APP_BUILD)),
+    disableMinification,
   };
 }
 

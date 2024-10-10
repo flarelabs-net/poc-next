@@ -13,10 +13,11 @@ if (!["js", "cjs", "mjs", "ts"].some((ext) => existsSync(`./next.config.${ext}`)
   throw new Error("Error: Not in a Next.js app project");
 }
 
-const { skipBuild, outputDir } = getArgs();
+const { skipBuild, outputDir, disableMinification } = getArgs();
 
 await build({
   sourceDir: nextAppDir,
   outputDir: resolve(outputDir ?? nextAppDir, ".worker-next"),
   skipBuild,
+  disableMinification,
 });
