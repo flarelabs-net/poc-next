@@ -4,14 +4,18 @@ import { readdirSync, statSync } from "node:fs";
 const PACKAGE_NAME = "@opennextjs/cloudflare";
 
 export type Config = {
-  // Timestamp for when the build was started
-  buildTimestamp: number;
+  build: {
+    // Timestamp for when the build was started
+    timestamp: number;
+    // Whether to skip building the Next.js app or not
+    shouldSkip: boolean;
+  };
 
   paths: {
     // Path to the next application
-    nextApp: string;
+    sourceDir: string;
     // Path to the output folder
-    builderOutput: string;
+    outputDir: string;
     // Path to the app's `.next` directory (where `next build` saves the build output)
     dotNext: string;
     // Path to the application standalone root directory
@@ -39,13 +43,14 @@ export type Config = {
 /**
  * Computes the configuration.
  *
- * @param appDir Next app root folder
- * @param outputDir Output of the cloudflare builder
+ * @param opts.sourceDir Next app root folder
+ * @param opts.outputDir The directory where to save the output (defaults to the app's directory)
+ * @param opts.skipBuild Whether the Next.js build should be skipped (i.e. if the `.next` dir is already built)
  *
- * @returns the configuration, see `Config`
+ * @returns The configuration, see `Config`
  */
-export function getConfig(appDir: string, outputDir: string): Config {
-  const dotNext = path.join(outputDir, ".next");
+export function getConfig(opts: ProjectOptions): Config {
+  const dotNext = path.join(opts.outputDir, ".next");
   const appPath = getNextjsApplicationPath(dotNext).replace(/\/$/, "");
   const standaloneRoot = path.join(dotNext, "standalone");
   const standaloneApp = path.join(standaloneRoot, appPath);
@@ -59,11 +64,14 @@ export function getConfig(appDir: string, outputDir: string): Config {
   process.env.__OPENNEXT_KV_BINDING_NAME ??= "NEXT_CACHE_WORKERS_KV";
 
   return {
-    buildTimestamp: Date.now(),
+    build: {
+      timestamp: Date.now(),
+      shouldSkip: !!opts.skipBuild,
+    },
 
     paths: {
-      nextApp: appDir,
-      builderOutput: outputDir,
+      sourceDir: opts.sourceDir,
+      outputDir: opts.outputDir,
       dotNext,
       standaloneRoot,
       standaloneApp,
@@ -88,6 +96,12 @@ export function containsDotNextDir(folder: string): boolean {
     return false;
   }
 }
+
+export type ProjectOptions = {
+  sourceDir: string;
+  outputDir: string;
+  skipBuild?: boolean;
+};
 
 /**
  * It basically tries to find the path that the application is under inside the `.next/standalone` directory, using the `.next/server` directory

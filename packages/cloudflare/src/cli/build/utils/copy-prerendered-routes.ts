@@ -19,7 +19,7 @@ export function copyPrerenderedRoutes(config: Config) {
 
   const serverAppDirPath = join(config.paths.standaloneAppServer, "app");
   const prerenderManifestPath = join(config.paths.standaloneAppDotNext, "prerender-manifest.json");
-  const outputPath = join(config.paths.builderOutput, "assets", SEED_DATA_DIR);
+  const outputPath = join(config.paths.outputDir, "assets", SEED_DATA_DIR);
 
   const prerenderManifest: PrerenderManifest = existsSync(prerenderManifestPath)
     ? JSON.parse(readFileSync(prerenderManifestPath, "utf8"))
@@ -38,7 +38,7 @@ export function copyPrerenderedRoutes(config: Config) {
 
     if (fullPath.endsWith(NEXT_META_SUFFIX)) {
       const data = JSON.parse(readFileSync(fullPath, "utf8"));
-      writeFileSync(destPath, JSON.stringify({ ...data, lastModified: config.buildTimestamp }));
+      writeFileSync(destPath, JSON.stringify({ ...data, lastModified: config.build.timestamp }));
     } else {
       copyFileSync(fullPath, destPath);
     }

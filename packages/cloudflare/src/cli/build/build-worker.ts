@@ -32,16 +32,16 @@ export async function buildWorker(config: Config): Promise<void> {
   // Copy over client-side generated files
   await cp(
     path.join(config.paths.dotNext, "static"),
-    path.join(config.paths.builderOutput, "assets", "_next", "static"),
+    path.join(config.paths.outputDir, "assets", "_next", "static"),
     {
       recursive: true,
     }
   );
 
   // Copy over any static files (e.g. images) from the source project
-  const publicDir = path.join(config.paths.nextApp, "public");
+  const publicDir = path.join(config.paths.sourceDir, "public");
   if (existsSync(publicDir)) {
-    await cp(publicDir, path.join(config.paths.builderOutput, "assets"), {
+    await cp(publicDir, path.join(config.paths.outputDir, "assets"), {
       recursive: true,
     });
   }
@@ -52,7 +52,7 @@ export async function buildWorker(config: Config): Promise<void> {
   copyPackageCliFiles(packageDistDir, config);
 
   const workerEntrypoint = path.join(config.paths.internalTemplates, "worker.ts");
-  const workerOutputFile = path.join(config.paths.builderOutput, "index.mjs");
+  const workerOutputFile = path.join(config.paths.outputDir, "index.mjs");
 
   const nextConfigStr =
     readFileSync(path.join(config.paths.standaloneApp, "/server.js"), "utf8")?.match(
