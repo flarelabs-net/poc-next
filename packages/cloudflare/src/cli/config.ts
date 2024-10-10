@@ -16,6 +16,8 @@ export type Config = {
     timestamp: number;
     // Whether to skip building the Next.js app or not
     shouldSkip: boolean;
+    // Whether to disable minification or not
+    shouldMinify: boolean;
   };
 
   paths: {
@@ -53,6 +55,7 @@ export type Config = {
  * @param opts.sourceDir Next app root folder
  * @param opts.outputDir The directory where to save the output (defaults to the app's directory)
  * @param opts.skipBuild Whether the Next.js build should be skipped (i.e. if the `.next` dir is already built)
+ * @param opts.disableMinification Whether minification of the worker should be disabled
  *
  * @returns The configuration, see `Config`
  */
@@ -72,6 +75,7 @@ export function getConfig(opts: ProjectOptions): Config {
     build: {
       timestamp: Date.now(),
       shouldSkip: !!opts.skipBuild,
+      shouldMinify: !opts.disableMinification,
     },
 
     paths: {
@@ -106,6 +110,7 @@ export type ProjectOptions = {
   sourceDir: string;
   outputDir: string;
   skipBuild?: boolean;
+  disableMinification?: boolean;
 };
 
 /**

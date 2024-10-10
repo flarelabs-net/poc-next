@@ -18,7 +18,7 @@ export async function patchCache(code: string, config: Config): Promise<string> 
     outfile: cacheHandlerOutputFile,
     format: "esm",
     target: "esnext",
-    minify: true,
+    minify: config.build.shouldMinify,
     define: {
       "process.env.__OPENNEXT_KV_BINDING_NAME": `"${config.cache.kvBindingName}"`,
     },
