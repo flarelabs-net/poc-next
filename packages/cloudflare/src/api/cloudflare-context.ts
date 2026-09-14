@@ -244,13 +244,36 @@ async function getCloudflareContextAsync<
 }
 
 /**
+ * Tracks whether {@link initOpenNextCloudflareForDev} has already been called in the current Node.js
+ * process. Calling it more than once spawns competing workerd instances and surfaces as an obscure
+ * `SQLITE_BUSY` failure (see https://github.com/opennextjs/opennextjs-cloudflare/issues/1251), so we
+ * surface a user-actionable error before any setup runs.
+ */
+let initOpenNextCloudflareForDevHasBeenCalled = false;
+
+/**
  * Performs some initial setup to integrate as best as possible the local Next.js dev server (run via `next dev`)
  * with the open-next Cloudflare adapter
  *
- * Note: this function should only be called inside the Next.js config file, and although async it doesn't need to be `await`ed
+ * Note: this function should only be called inside the Next.js config file. Although it returns a
+ * promise it doesn't need to be `await`ed: the duplicate-call guard throws synchronously, so a second
+ * unawaited call fails at the call site instead of as an unhandled promise rejection.
  * @param options options on how the function should operate and if/where to persist the platform data
  */
-export async function initOpenNextCloudflareForDev(options?: GetPlatformProxyOptions) {
+export function initOpenNextCloudflareForDev(options?: GetPlatformProxyOptions): Promise<void> {
+	if (initOpenNextCloudflareForDevHasBeenCalled) {
+		throw new Error(
+			`\n\nERROR: \`initOpenNextCloudflareForDev\` was called more than once in the same process.\n` +
+				`It should be called exactly once, at the top of your Next.js config file.\n` +
+				`Multiple calls start competing Workers runtimes, which fail with an obscure workerd \`SQLITE_BUSY\` error.\n`
+		);
+	}
+	initOpenNextCloudflareForDevHasBeenCalled = true;
+
+	return initOpenNextCloudflareForDevImpl(options);
+}
+
+async function initOpenNextCloudflareForDevImpl(options?: GetPlatformProxyOptions) {
 	const shouldInitializationRun = shouldContextInitializationRun();
 	if (!shouldInitializationRun) return;
 
