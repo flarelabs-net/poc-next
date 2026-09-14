@@ -51,36 +51,85 @@ export async function purgeCacheByTags(tags: string[]) {
 	} else {
 		// We don't have a durable object for purging cache
 		// We should use the API directly
-		await internalPurgeCacheByTags(env, tags);
+		const zoneIds = parseZoneIds(env);
+		await internalPurgeCacheByTags(env, tags, zoneIds);
 	}
 }
 
-export async function internalPurgeCacheByTags(env: CloudflareEnv, tags: string[]) {
-	if (!env.CACHE_PURGE_ZONE_ID || !env.CACHE_PURGE_API_TOKEN) {
+type PurgeCacheStatus = "missing-credentials" | "rate-limit-exceeded" | "purge-failed" | "purge-success";
+
+/**
+ * Parse zone IDs from the `CACHE_PURGE_ZONE_ID` environment variable.
+ */
+export function parseZoneIds(env: CloudflareEnv): string[] {
+	const zoneIds = new Set<string>();
+	if (env.CACHE_PURGE_ZONE_ID) {
+		for (const raw of env.CACHE_PURGE_ZONE_ID.split(",")) {
+			const id = raw.trim();
+			if (id) {
+				zoneIds.add(id);
+			}
+		}
+	}
+	return [...zoneIds];
+}
+
+/**
+ * Purge cache tags for one or more zones.
+ *
+ * @param env     - The Cloudflare environment bindings.
+ * @param tags    - The cache tags to purge.
+ * @param zoneIds - The zone IDs to purge. Use {@link parseZoneIds} to derive
+ *                  them from the environment, or pass a subset to retry only
+ *                  specific zones.
+ */
+export async function internalPurgeCacheByTags(
+	env: CloudflareEnv,
+	tags: string[],
+	zoneIds: string[]
+): Promise<{ status: PurgeCacheStatus; rateLimitedZones: string[] }> {
+	if (zoneIds.length === 0 || !env.CACHE_PURGE_API_TOKEN) {
 		// THIS IS A NO-OP
-		error("No cache zone ID or API token provided. Skipping cache purge.");
-		return "missing-credentials";
+		error("No cache zone ID(s) or API token provided. Skipping cache purge.");
+		return { status: "missing-credentials", rateLimitedZones: [] };
 	}
 
+	const results = await Promise.all(zoneIds.map((zoneId) => purgeZone(env, zoneId, tags)));
+
+	const rateLimitedZones = results.filter((r) => r.status === "rate-limit-exceeded").map((r) => r.zoneId);
+
+	if (rateLimitedZones.length > 0) {
+		return { status: "rate-limit-exceeded", rateLimitedZones };
+	}
+
+	if (results.some((r) => r.status === "purge-failed")) {
+		return { status: "purge-failed", rateLimitedZones: [] };
+	}
+
+	return { status: "purge-success", rateLimitedZones: [] };
+}
+
+async function purgeZone(
+	env: CloudflareEnv,
+	zoneId: string,
+	tags: string[]
+): Promise<{ zoneId: string; status: PurgeCacheStatus }> {
 	let response: Response | undefined;
 	try {
-		response = await fetch(
-			`https://api.cloudflare.com/client/v4/zones/${env.CACHE_PURGE_ZONE_ID}/purge_cache`,
-			{
-				headers: {
-					Authorization: `Bearer ${env.CACHE_PURGE_API_TOKEN}`,
-					"Content-Type": "application/json",
-				},
-				method: "POST",
-				body: JSON.stringify({
-					tags,
-				}),
-			}
-		);
+		response = await fetch(`https://api.cloudflare.com/client/v4/zones/${zoneId}/purge_cache`, {
+			headers: {
+				Authorization: `Bearer ${env.CACHE_PURGE_API_TOKEN}`,
+				"Content-Type": "application/json",
+			},
+			method: "POST",
+			body: JSON.stringify({
+				tags,
+			}),
+		});
 		if (response.status === 429) {
 			// Rate limit exceeded
-			error("purgeCacheByTags: Rate limit exceeded. Skipping cache purge.");
-			return "rate-limit-exceeded";
+			error(`purgeCacheByTags: Rate limit exceeded for zone ${zoneId}. Skipping cache purge.`);
+			return { zoneId, status: "rate-limit-exceeded" };
 		}
 		const bodyResponse = (await response.json()) as {
 			success: boolean;
@@ -88,16 +137,16 @@ export async function internalPurgeCacheByTags(env: CloudflareEnv, tags: string[
 		};
 		if (!bodyResponse.success) {
 			error(
-				"purgeCacheByTags: Cache purge failed. Errors:",
+				`purgeCacheByTags: Cache purge failed for zone ${zoneId}. Errors:`,
 				bodyResponse.errors.map((error) => `${error.code}: ${error.message}`)
 			);
-			return "purge-failed";
+			return { zoneId, status: "purge-failed" };
 		}
-		debugCache("purgeCacheByTags", "Cache purged successfully for tags:", tags);
-		return "purge-success";
-	} catch (error) {
-		console.error("Error purging cache by tags:", error);
-		return "purge-failed";
+		debugCache("purgeCacheByTags", `Cache purged successfully for zone ${zoneId}, tags:`, tags);
+		return { zoneId, status: "purge-success" };
+	} catch (e) {
+		error(`Error purging cache by tags for zone ${zoneId}:`, e);
+		return { zoneId, status: "purge-failed" };
 	} finally {
 		// Cancel the stream when it has not been consumed
 		try {
