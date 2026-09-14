@@ -95,7 +95,7 @@ describe("patchResRevalidate", () => {
       -                method: 'HEAD',
       -                headers: revalidateHeaders
       -            });
-      +            const res = await (await import("@opennextjs/cloudflare")).getCloudflareContext().env.WORKER_SELF_REFERENCE.fetch(\`\${req.headers.host.includes("localhost") ? "http":"https" }://\${req.headers.host}\${urlPath}\`,{method:'HEAD', headers:revalidateHeaders});
+      +            const res = await (await import("@opennextjs/cloudflare")).getCloudflareContext().env.WORKER_SELF_REFERENCE.fetch(\`https://self.local\${urlPath}\`,{method:'HEAD', headers:revalidateHeaders});
                    // we use the cache header to determine successful revalidate as
                    // a non-200 status code can be returned from a successful revalidate
                    // e.g. notFound: true returns 404 status code but is successful

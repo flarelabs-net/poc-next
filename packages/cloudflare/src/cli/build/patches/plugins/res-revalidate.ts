@@ -53,7 +53,7 @@ rule:
                       has:
                         kind: identifier
 
-fix: await (await import("@opennextjs/cloudflare")).getCloudflareContext().env.WORKER_SELF_REFERENCE.fetch(\`\${$REQ.headers.host.includes("localhost") ? "http":"https" }://\${$REQ.headers.host}$URL_PATH\`,{method:'HEAD', headers:$HEADERS})
+fix: await (await import("@opennextjs/cloudflare")).getCloudflareContext().env.WORKER_SELF_REFERENCE.fetch(\`https://self.local$URL_PATH\`,{method:'HEAD', headers:$HEADERS})
 `;
 
 export const patchResRevalidate: CodePatcher = {
