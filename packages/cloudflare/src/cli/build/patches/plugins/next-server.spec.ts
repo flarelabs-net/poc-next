@@ -1,3 +1,4 @@
+import { patchCode } from "@opennextjs/aws/build/patch/astCodePatcher.js";
 import { describe, expect, test } from "vitest";
 
 import { computePatchDiff } from "../../utils/test-patch.js";
@@ -257,36 +258,45 @@ class NextNodeServer extends _baseserver.default {
 		expect(
 			computePatchDiff("next-server.js", next15ServerCode, createComposableCacheHandlersRule("manifest"))
 		).toMatchInlineSnapshot(`
-      "Index: next-server.js
-      ===================================================================
-      --- next-server.js
-      +++ next-server.js
-      @@ -1,5 +1,4 @@
-      -
-       class NextNodeServer extends _baseserver.default {
-           constructor(options){
-               // Initialize super class
-               super(options);
-      @@ -35,9 +34,16 @@
-               const manifest = require(this.middlewareManifestPath);
-               return manifest;
-           }
-           async loadCustomCacheHandlers() {
-      -        const { cacheHandlers } = this.nextConfig.experimental;
-      +        const cacheHandlers = null;
-      +const handlersSymbol = Symbol.for('@next/cache-handlers');
-      +const handlersMapSymbol = Symbol.for('@next/cache-handlers-map');
-      +const handlersSetSymbol = Symbol.for('@next/cache-handlers-set');
-      +globalThis[handlersMapSymbol] = new Map();
-      +globalThis[handlersMapSymbol].set("default", require('manifest').default);
-      +globalThis[handlersMapSymbol].set("remote", require('manifest').default);
-      +globalThis[handlersSetSymbol] = new Set(globalThis[handlersMapSymbol].values());
-               if (!cacheHandlers) return;
-               // If we've already initialized the cache handlers interface, don't do it
-               // again.
-               if (!(0, _handlers.initializeCacheHandlers)()) return;
-      "
-    `);
+			"Index: next-server.js
+			===================================================================
+			--- next-server.js
+			+++ next-server.js
+			@@ -1,5 +1,4 @@
+			-
+			 class NextNodeServer extends _baseserver.default {
+			     constructor(options){
+			         // Initialize super class
+			         super(options);
+			@@ -35,18 +34,16 @@
+			         const manifest = require(this.middlewareManifestPath);
+			         return manifest;
+			     }
+			     async loadCustomCacheHandlers() {
+			-        const { cacheHandlers } = this.nextConfig.experimental;
+			-        if (!cacheHandlers) return;
+			-        // If we've already initialized the cache handlers interface, don't do it
+			-        // again.
+			-        if (!(0, _handlers.initializeCacheHandlers)()) return;
+			-        for (const [kind, handler] of Object.entries(cacheHandlers)){
+			-            if (!handler) continue;
+			-            (0, _handlers.setCacheHandler)(kind, (0, _interopdefault.interopDefault)(await dynamicImportEsmDefault((0, _formatdynamicimportpath.formatDynamicImportPath)(this.distDir, handler))));
+			-        }
+			-    }
+			+  const handlersSymbol = Symbol.for('@next/cache-handlers');
+			+  const handlersMapSymbol = Symbol.for('@next/cache-handlers-map');
+			+  const handlersSetSymbol = Symbol.for('@next/cache-handlers-set');
+			+  globalThis[handlersMapSymbol] = new Map();
+			+  globalThis[handlersMapSymbol].set("default", require('manifest').default);
+			+  globalThis[handlersMapSymbol].set("remote", require('manifest').default);
+			+  globalThis[handlersSetSymbol] = new Set(globalThis[handlersMapSymbol].values());
+			+}
+			     async getIncrementalCache({ requestHeaders, requestProtocol }) {
+			         const dev = !!this.renderOpts.dev;
+			         let CacheHandler;
+			         const { cacheHandler } = this.nextConfig;
+			"
+		`);
 	});
 
 	test("composable cache handler (Next 16)", () => {
@@ -297,27 +307,89 @@ class NextNodeServer extends _baseserver.default {
 			===================================================================
 			--- next-server.js
 			+++ next-server.js
-			@@ -1,10 +1,16 @@
+			@@ -1,17 +1,14 @@
 			-
 			 class NextNodeServer extends _baseserver.default {
 			     // ...
 			 
 			     async loadCustomCacheHandlers() {
 			-        const { cacheMaxMemorySize, cacheHandlers } = this.nextConfig;
-			+        const cacheHandlers = null;
-			+const handlersSymbol = Symbol.for('@next/cache-handlers');
-			+const handlersMapSymbol = Symbol.for('@next/cache-handlers-map');
-			+const handlersSetSymbol = Symbol.for('@next/cache-handlers-set');
-			+globalThis[handlersMapSymbol] = new Map();
-			+globalThis[handlersMapSymbol].set("default", require('manifest').default);
-			+globalThis[handlersMapSymbol].set("remote", require('manifest').default);
-			+globalThis[handlersSetSymbol] = new Set(globalThis[handlersMapSymbol].values());
-			         if (!cacheHandlers) return;
-			         // If we've already initialized the cache handlers interface, don't do it
-			         // again.
-			         if (!(0, _handlers.initializeCacheHandlers)(cacheMaxMemorySize)) return;
+			-        if (!cacheHandlers) return;
+			-        // If we've already initialized the cache handlers interface, don't do it
+			-        // again.
+			-        if (!(0, _handlers.initializeCacheHandlers)(cacheMaxMemorySize)) return;
+			-        for (const [kind, handler] of Object.entries(cacheHandlers)){
+			-            if (!handler) continue;
+			-            (0, _handlers.setCacheHandler)(kind, (0, _interopdefault.interopDefault)(await dynamicImportEsmDefault((0, _formatdynamicimportpath.formatDynamicImportPath)(this.distDir, handler))));
+			-        }
+			-    }
+			+  const handlersSymbol = Symbol.for('@next/cache-handlers');
+			+  const handlersMapSymbol = Symbol.for('@next/cache-handlers-map');
+			+  const handlersSetSymbol = Symbol.for('@next/cache-handlers-set');
+			+  globalThis[handlersMapSymbol] = new Map();
+			+  globalThis[handlersMapSymbol].set("default", require('manifest').default);
+			+  globalThis[handlersMapSymbol].set("remote", require('manifest').default);
+			+  globalThis[handlersSetSymbol] = new Set(globalThis[handlersMapSymbol].values());
+			+}
+			     // ...
+			 }
 			"
 		`);
+	});
+
+	test("composable cache handler replaces the whole method body", () => {
+		// Next.js 16.3 rebinds `cacheMaxMemorySize` into the same declaration as
+		// `cacheHandlers` and the native body consumes both. Replacing only the
+		// declaration left the surviving native body reading bindings that no longer
+		// existed (ReferenceError at runtime once minified). Nothing native may
+		// survive inside the patched method.
+		for (const serverCode of [next15ServerCode, next16ServerCode]) {
+			const patched = patchCode(serverCode, createComposableCacheHandlersRule("manifest"));
+			const method = patched.match(/async loadCustomCacheHandlers\(\) \{\n([\s\S]*?)\n\}/)?.[1];
+			expect(method).toBeDefined();
+
+			expect(method).toContain("require('manifest').default");
+			expect(method).not.toContain("initializeCacheHandlers");
+			expect(method).not.toContain("cacheMaxMemorySize");
+			expect(method).not.toContain("Object.entries");
+			expect(method).not.toContain("formatDynamicImportPath");
+			expect(method).not.toContain("dynamicImportEsmDefault");
+		}
+	});
+
+	test("composable cache handler wires the registry when executed", async () => {
+		const patched = patchCode(next16ServerCode, createComposableCacheHandlersRule("manifest"));
+		const method = patched.match(/async loadCustomCacheHandlers\(\) \{\n([\s\S]*?)\n\}/);
+		expect(method).not.toBeNull();
+
+		const mapSymbol = Symbol.for("@next/cache-handlers-map");
+		const setSymbol = Symbol.for("@next/cache-handlers-set");
+		try {
+			const NextNodeServer = new Function(
+				"require",
+				`class NextNodeServer {
+  async loadCustomCacheHandlers() {
+${method![1]}
+  }
+}
+return NextNodeServer;`
+			)((modulePath: string) => ({ default: modulePath })) as new () => {
+				loadCustomCacheHandlers(): Promise<void>;
+			};
+
+			await new NextNodeServer().loadCustomCacheHandlers();
+
+			expect(Reflect.get(globalThis, mapSymbol)).toEqual(
+				new Map([
+					["default", "manifest"],
+					["remote", "manifest"],
+				])
+			);
+			expect(Reflect.get(globalThis, setSymbol)).toEqual(new Set(["manifest"]));
+		} finally {
+			Reflect.deleteProperty(globalThis, mapSymbol);
+			Reflect.deleteProperty(globalThis, setSymbol);
+		}
 	});
 
 	test("disable node middleware", () => {
