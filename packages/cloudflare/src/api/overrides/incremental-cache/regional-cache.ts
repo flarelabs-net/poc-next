@@ -179,24 +179,31 @@ class RegionalCache implements IncrementalCache {
 		value: CacheValue<CacheType>,
 		cacheType?: CacheType
 	): Promise<void> {
-		try {
-			debugCache("RegionalCache", `set ${key}`);
+		debugCache("RegionalCache", `set ${key}`);
 
-			await this.store.set(key, value, cacheType);
+		// Next.js awaits `set` while it produces the response, so awaiting the writes here
+		// puts them on the critical path. The returned value is not used, so they can run
+		// in the background without changing what is served.
+		getCloudflareContext().ctx.waitUntil(
+			(async () => {
+				try {
+					await this.store.set(key, value, cacheType);
 
-			await this.putToCache({
-				key,
-				cacheType,
-				entry: {
-					value,
-					// Note: `Date.now()` returns the time of the last IO rather than the actual time.
-					//       See https://developers.cloudflare.com/workers/reference/security-model/
-					lastModified: Date.now(),
-				},
-			});
-		} catch (e) {
-			error(`Failed to set the regional cache`, e);
-		}
+					await this.putToCache({
+						key,
+						cacheType,
+						entry: {
+							value,
+							// Note: `Date.now()` returns the time of the last IO rather than the actual time.
+							//       See https://developers.cloudflare.com/workers/reference/security-model/
+							lastModified: Date.now(),
+						},
+					});
+				} catch (e) {
+					error(`Failed to set the regional cache`, e);
+				}
+			})()
+		);
 	}
 
 	async delete(key: string): Promise<void> {
