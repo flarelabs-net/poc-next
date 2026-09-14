@@ -1081,8 +1081,8 @@ importers:
         specifier: 'catalog:'
         version: 1.31.0
       '@opennextjs/aws':
-        specifier: 4.1.4
-        version: 4.1.4(next@15.5.24(@opentelemetry/api@1.9.0)(@playwright/test@1.51.1)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))
+        specifier: 4.1.5
+        version: 4.1.5(next@15.5.24(@opentelemetry/api@1.9.0)(@playwright/test@1.51.1)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))
       ci-info:
         specifier: ^4.2.0
         version: 4.2.0
@@ -4034,8 +4034,8 @@ packages:
   '@octokit/types@13.10.0':
     resolution: {integrity: sha512-ifLaO34EbbPj0Xgro4G5lP5asESjwHracYJvVaPIyXMuiuXLlhic3S47cBdTb+jfODkTE5YtGCLt3Ay3+J97sA==}
 
-  '@opennextjs/aws@4.1.4':
-    resolution: {integrity: sha512-L5Yle38qg6p1DY3yS8FXO2840pXW5XlAR6XM71TtIYs0Kh7eQE/a+j4T/DR+VgUQSxbAWw3J2Wnar08xPhOS+w==}
+  '@opennextjs/aws@4.1.5':
+    resolution: {integrity: sha512-41LNGtS5R5SCfn9zFxHx9QKJIRnmf1uZH+jonHkUMlRKER0bSmUSGjK6GJF7e50XdLXFpTHzaqgRvGmzvr9Btw==}
     hasBin: true
     peerDependencies:
       next: '>=15.5.24 <16 || >=16.3.3'
@@ -13496,7 +13496,7 @@ snapshots:
     dependencies:
       '@octokit/openapi-types': 24.2.0
 
-  '@opennextjs/aws@4.1.4(next@15.5.24(@opentelemetry/api@1.9.0)(@playwright/test@1.51.1)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))':
+  '@opennextjs/aws@4.1.5(next@15.5.24(@opentelemetry/api@1.9.0)(@playwright/test@1.51.1)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))':
     dependencies:
       '@ast-grep/napi': 0.40.5
       '@aws-sdk/client-cloudfront': 3.984.0
