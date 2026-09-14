@@ -84,6 +84,7 @@ export async function bundleServer(buildOpts: BuildOptions, projectOpts: Project
 		minifySyntax: projectOpts.minify && !debug,
 		legalComments: "none",
 		metafile: true,
+		sourcemap: getOpenNextConfig(buildOpts).cloudflare?.sourcemap,
 		// Next traces files using the default conditions from `nft` (`node`, `require`, `import` and `default`)
 		//
 		// Because we use the `node` platform for this build, the "module" condition is used when no conditions are defined.

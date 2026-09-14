@@ -90,6 +90,7 @@ export function defineCloudflareConfig(config: CloudflareOverrides = {}): OpenNe
 		edgeExternals: ["node:crypto"],
 		cloudflare: {
 			useWorkerdCondition: true,
+			sourcemap: false,
 		},
 		dangerous: {
 			enableCacheInterception,
@@ -153,6 +154,14 @@ interface OpenNextConfig extends AwsOpenNextConfig {
 		 * @default true
 		 */
 		useWorkerdCondition?: boolean;
+
+		/**
+		 * Whether to genereate a sourcemap for the bundled server.
+		 *
+		 *
+		 * @default false
+		 */
+		sourcemap?: boolean;
 
 		/**
 		 * Disable throwing an error when the config validation fails.
