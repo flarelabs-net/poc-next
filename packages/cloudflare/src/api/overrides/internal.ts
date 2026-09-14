@@ -123,8 +123,8 @@ async function purgeZone(env: CloudflareEnv, zoneId: string, tags: string[]): Pr
 		}
 		debugCache("purgeCacheByTags", `Cache purged successfully for zone ${zoneId}, tags:`, tags);
 		return "purge-success";
-	} catch (error) {
-		console.error(`Error purging cache by tags for zone ${zoneId}:`, error);
+	} catch (e) {
+		error(`Error purging cache by tags for zone ${zoneId}:`, e);
 		return "purge-failed";
 	} finally {
 		// Cancel the stream when it has not been consumed
