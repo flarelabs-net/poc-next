@@ -73,33 +73,53 @@ export async function getEnvFromPlatformProxy(options: GetPlatformProxyOptions, 
 }
 
 /**
- * Escape shell metacharacters.
+ * Escape a single argument for shell-style invocation. Cross-platform.
  *
- * When `spawnSync` is invoked with `shell: true`, metacharacters need to be escaped.
+ * On Windows, `runWrangler` invokes `cmd.exe /d /s /c "<command line>"` with
+ * `windowsVerbatimArguments: true`. The algorithm matches `cross-spawn`'s `escapeArgument`:
+ *   1. Wrap the value in `"..."`, doubling backslash sequences that precede a quote per the
+ *      Windows command-line argument rules.
+ *   2. Caret-escape every cmd.exe metacharacter, including the wrapping quotes themselves.
+ * The wrapping carets are needed for the OUTER `cmd /c "..."` parse: cmd.exe consumes them
+ * and the receiving program sees a normally-quoted argument. Crucially, `^` must NOT be
+ * applied inside an un-caret-escaped quoted region, because cmd.exe treats `^` as literal
+ * inside double quotes (this was the bug an earlier shell-quote-style implementation hit).
  *
- * Based on https://github.com/ljharb/shell-quote/blob/main/quote.js
+ * On POSIX, the value is quoted using standard POSIX shell rules (single quotes by default,
+ * double quotes when the value contains a single quote, backslash-escapes for bare values).
+ * `runWrangler` itself does not invoke a shell on POSIX, but this branch is preserved so the
+ * function behaves usefully for any direct caller.
+ *
+ * References: https://github.com/moxystudio/node-cross-spawn/blob/master/lib/util/escape.js
+ *             https://qntm.org/cmd
  *
  * @param arg
  * @returns escaped arg
  */
 export function quoteShellMeta(arg: string) {
-	if (process.platform === "win32") {
-		if (arg.length === 0) {
-			return '""';
+	if (process.platform !== "win32") {
+		// POSIX shell quoting.
+		if (/["\s]/.test(arg) && !/'/.test(arg)) {
+			return `'${arg.replace(/(['\\])/g, "\\$1")}'`;
 		}
-		const needsEscaping = /[&|<>^()%!"]/;
-		const needsQuotes = /\s/.test(arg) || needsEscaping.test(arg);
-		let escaped = arg.replace(/"/g, '""');
-		if (/[&|<>^()%!]/.test(arg)) {
-			escaped = escaped.replace(/[&|<>^()%!]/g, "^$&");
+		if (/["'\s]/.test(arg)) {
+			return `"${arg.replace(/(["\\$`!])/g, "\\$1")}"`;
 		}
-		return needsQuotes ? `"${escaped}"` : escaped;
+		return arg.replace(/([A-Za-z]:)?([#!"$&'()*,:;<=>?@[\\\]^`{|}])/g, "$1\\$2");
 	}
-	if (/["\s]/.test(arg) && !/'/.test(arg)) {
-		return `'${arg.replace(/(['\\])/g, "\\$1")}'`;
-	}
-	if (/["'\s]/.test(arg)) {
-		return `"${arg.replace(/(["\\$`!])/g, "\\$1")}"`;
-	}
-	return arg.replace(/([A-Za-z]:)?([#!"$&'()*,:;<=>?@[\\\]^`{|}])/g, "$1\\$2");
+
+	// Windows: cross-spawn-style escaping for `cmd.exe /d /s /c "..."` invocation.
+	const metaChars = /([()\][%!^"`<>&|;, *?])/g;
+
+	// Double up backslashes that precede a `"` (so the pre-existing backslashes survive
+	// as literals after the quote-doubling below).
+	let escaped = arg.replace(/(?=(\\+?)?)\1"/g, '$1$1\\"');
+	// Same for backslashes at the end of the string (which will be followed by the wrapping `"`).
+	escaped = escaped.replace(/(?=(\\+?)?)\1$/, "$1$1");
+	// Wrap the whole thing in quotes.
+	escaped = `"${escaped}"`;
+	// Caret-escape every meta char, including the wrapping quotes themselves.
+	escaped = escaped.replace(metaChars, "^$1");
+
+	return escaped;
 }

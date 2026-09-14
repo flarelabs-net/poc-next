@@ -4,6 +4,8 @@ import path from "node:path";
 
 import { compareSemver } from "@opennextjs/aws/build/helper.js";
 
+import { quoteShellMeta } from "./helpers.js";
+
 export type PackagerDetails = {
 	/** The name of the package manager. */
 	packager: "npm" | "pnpm" | "yarn" | "bun";
@@ -96,39 +98,68 @@ export function runWrangler(
 ): WranglerCommandResult {
 	const noLogs = wranglerOpts.logging === "none";
 	const shouldPipeLogs = wranglerOpts.logging === "error";
+	const isWin = process.platform === "win32";
 
-	const result = spawnSync(
-		options.packager,
-		[
-			options.packager === "bun" ? "x" : "exec",
-			"wrangler",
-			...injectPassthroughFlagForArgs(
-				options,
+	const packagerArgs = [
+		options.packager === "bun" ? "x" : "exec",
+		"wrangler",
+		...injectPassthroughFlagForArgs(options, [
+			...args,
+			...(wranglerOpts.environment ? ["--env", wranglerOpts.environment] : []),
+			...(wranglerOpts.configPath ? ["--config", wranglerOpts.configPath] : []),
+			...(wranglerOpts.target === "remote" ? ["--remote"] : []),
+			...(wranglerOpts.target === "local" ? ["--local"] : []),
+		]),
+	];
+
+	// Always pipe stderr so that we can capture it for inspection.
+	// Keep stdin and stdout as "inherit" when not piping logs to maintain TTY detection
+	// (wrangler checks `process.stdin.isTTY && process.stdout.isTTY` for interactive mode).
+	const stdio: ("inherit" | "ignore" | "pipe")[] =
+		shouldPipeLogs || noLogs ? ["ignore", "pipe", "pipe"] : ["inherit", "inherit", "pipe"];
+
+	const env = {
+		...process.env,
+		...wranglerOpts.env,
+		// `.env` files are handled by the adapter.
+		// Wrangler would load `.env.<wrangler env>` while we should load `.env.<process.env.NEXTJS_ENV>`
+		// See https://opennext.js.org/cloudflare/howtos/env-vars
+		CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: "false",
+	};
+
+	// We use `shell: false` everywhere to avoid DEP0190.
+	// See https://nodejs.org/api/deprecations.html#dep0190-passing-args-to-nodechild-process-execfilespawn-with-shell-option
+	//
+	// On POSIX we can spawn the package manager binary directly: each value is passed verbatim
+	// as its own argv entry.
+	//
+	// On Windows the package manager is typically a `.cmd` shim. Per Node.js docs
+	// (https://nodejs.org/api/child_process.html#spawning-bat-and-cmd-files-on-windows) the
+	// recommended way to invoke a `.cmd`/`.bat` without `shell: true` is to spawn `cmd.exe`
+	// directly with `/c`. We pre-escape every token with `quoteShellMeta` and pass the joined
+	// command line as a single quoted string with `windowsVerbatimArguments: true` so Node
+	// does not re-escape it. This mirrors how `cross-spawn` handles non-`.exe` commands.
+	const result = isWin
+		? spawnSync(
+				"cmd.exe",
 				[
-					...args,
-					wranglerOpts.environment && `--env ${wranglerOpts.environment}`,
-					wranglerOpts.configPath && `--config ${wranglerOpts.configPath}`,
-					wranglerOpts.target === "remote" && "--remote",
-					wranglerOpts.target === "local" && "--local",
-				].filter((v): v is string => !!v)
-			),
-		],
-		{
-			shell: true,
-			// Always pipe stderr so that we can capture it for inspection.
-			// Keep stdin and stdout as "inherit" when not piping logs to maintain TTY detection
-			// (wrangler checks `process.stdin.isTTY && process.stdout.isTTY` for interactive mode).
-			stdio: shouldPipeLogs || noLogs ? ["ignore", "pipe", "pipe"] : ["inherit", "inherit", "pipe"],
-			env: {
-				...process.env,
-				...wranglerOpts.env,
-				// `.env` files are handled by the adapter.
-				// Wrangler would load `.env.<wrangler env>` while we should load `.env.<process.env.NEXTJS_ENV>`
-				// See https://opennext.js.org/cloudflare/howtos/env-vars
-				CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: "false",
-			},
-		}
-	);
+					"/d",
+					"/s",
+					"/c",
+					`"${[options.packager, ...packagerArgs].map((token) => quoteShellMeta(token)).join(" ")}"`,
+				],
+				{
+					shell: false,
+					windowsVerbatimArguments: true,
+					stdio,
+					env,
+				}
+			)
+		: spawnSync(options.packager, packagerArgs, {
+				shell: false,
+				stdio,
+				env,
+			});
 
 	const success = result.status === 0;
 	const stdout = result.stdout?.toString() ?? "";

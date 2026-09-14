@@ -4,7 +4,7 @@ import type yargs from "yargs";
 import { DEPLOYMENT_MAPPING_ENV_NAME } from "../templates/skew-protection.js";
 import { populateCache, withPopulateCacheOptions } from "./populate-cache.js";
 import { getDeploymentMapping } from "./skew-protection.js";
-import { getEnvFromPlatformProxy, quoteShellMeta } from "./utils/helpers.js";
+import { getEnvFromPlatformProxy } from "./utils/helpers.js";
 import { runWrangler } from "./utils/run-wrangler.js";
 import type { WithWranglerArgs } from "./utils/utils.js";
 import {
@@ -61,7 +61,7 @@ export async function deployCommand(
 			"deploy",
 			...args.wranglerArgs,
 			...(deploymentMapping
-				? [`--var ${DEPLOYMENT_MAPPING_ENV_NAME}:${quoteShellMeta(JSON.stringify(deploymentMapping))}`]
+				? ["--var", `${DEPLOYMENT_MAPPING_ENV_NAME}:${JSON.stringify(deploymentMapping)}`]
 				: []),
 		],
 		{
