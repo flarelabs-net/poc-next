@@ -203,6 +203,23 @@ export async function handleCdnCgiImageRequest(requestURL: URL, env: CloudflareE
 		const absoluteURL = new URL(parseResult.url, requestURL);
 		imageResponse = await env.ASSETS.fetch(absoluteURL);
 	} else {
+		// Validate remote URLs against configured remote patterns (defense-in-depth).
+		// This handler is intended for development use only, but service binding requests
+		// can reach it in production, bypassing edge interception.
+		// Only validate when remotePatterns are configured; when empty (e.g. custom image
+		// loader without remotePatterns), skip the check to preserve dev emulation behavior.
+		// See: CVE-2026-3125 (GHSA-c7mq-gh6q-6q7c)
+		if (__IMAGES_REMOTE_PATTERNS__.length > 0) {
+			let parsedUrl: URL;
+			try {
+				parsedUrl = new URL(parseResult.url);
+			} catch {
+				return new Response('"url" parameter is invalid', { status: 400 });
+			}
+			if (!hasRemoteMatch(__IMAGES_REMOTE_PATTERNS__, parsedUrl)) {
+				return new Response('"url" parameter is not allowed', { status: 400 });
+			}
+		}
 		imageResponse = await fetch(parseResult.url);
 	}
 
