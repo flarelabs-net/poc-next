@@ -1,9 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import logger from "@opennextjs/aws/logger.js";
+import { beforeEach, describe, expect, it, type MockInstance, vi } from "vitest";
 
 import { askConfirmation } from "../../utils/ask-confirmation.js";
 import { createOpenNextConfigFile, findOpenNextConfig } from "../../utils/create-open-next-config.js";
 import { isNonInteractiveOrCI } from "../../utils/is-interactive.js";
-import { compileConfig } from "./utils.js";
+import { compileConfig, retrieveCompiledConfig } from "./utils.js";
 
 const { mockExistsSync } = vi.hoisted(() => ({
 	mockExistsSync: vi.fn(),
@@ -74,6 +75,11 @@ vi.mock("@opennextjs/aws/build/utils.js", () => ({
 // Mock build helper
 vi.mock("@opennextjs/aws/build/helper.js", () => ({
 	normalizeOptions: vi.fn(() => ({})),
+}));
+
+// Mock the worker path helper
+vi.mock("../../build/bundle-server.js", () => ({
+	getOutputWorkerPath: vi.fn(() => "/build-output/worker.js"),
 }));
 
 describe("compileConfig", () => {
@@ -160,5 +166,72 @@ describe("compileConfig", () => {
 
 		expect(askConfirmation).toHaveBeenCalledOnce();
 		expect(createOpenNextConfigFile).toHaveBeenCalledOnce();
+	});
+});
+
+describe("retrieveCompiledConfig", () => {
+	// The compiled config only lives under `<cwd>/.open-next/.build/` when `buildOutputPath` is
+	// left at its default, so these tests drive the two lookups independently.
+	function mockPaths({ compiledConfig, worker }: { compiledConfig: boolean; worker: boolean }) {
+		mockExistsSync.mockImplementation((p: string) => {
+			if (String(p).includes(".open-next/.build/")) return compiledConfig;
+			if (String(p).endsWith("worker.js")) return worker;
+			// The source config, checked by `compileConfig`.
+			return true;
+		});
+	}
+
+	let exitSpy: MockInstance<typeof process.exit>;
+
+	beforeEach(() => {
+		exitSpy = vi.spyOn(process, "exit").mockImplementation(() => {
+			throw new Error("process.exit");
+		});
+	});
+
+	it("should recompile from source when a custom buildOutputPath moved the compiled config", async () => {
+		mockPaths({ compiledConfig: false, worker: true });
+		vi.mocked(findOpenNextConfig).mockReturnValue("/app/open-next.config.ts");
+
+		const result = await retrieveCompiledConfig();
+
+		expect(mockCompileOpenNextConfig).toHaveBeenCalledWith("/app/open-next.config.ts", {
+			compileEdge: true,
+		});
+		expect(result.config).toEqual({ default: {} });
+	});
+
+	it("should report a missing build when there is no source config either", async () => {
+		mockPaths({ compiledConfig: false, worker: false });
+		vi.mocked(findOpenNextConfig).mockReturnValue(undefined);
+
+		await expect(retrieveCompiledConfig()).rejects.toThrowError("process.exit");
+
+		expect(logger.error).toHaveBeenCalledWith(
+			"Could not find compiled Open Next config, did you run the build command?"
+		);
+		expect(exitSpy).toHaveBeenCalledWith(1);
+	});
+
+	it("should report a missing build when the source config exists but the app was never built", async () => {
+		mockPaths({ compiledConfig: false, worker: false });
+		vi.mocked(findOpenNextConfig).mockReturnValue("/app/open-next.config.ts");
+
+		await expect(retrieveCompiledConfig()).rejects.toThrowError("process.exit");
+
+		expect(logger.error).toHaveBeenCalledWith(
+			"Could not find compiled Open Next config, did you run the build command?"
+		);
+		expect(exitSpy).toHaveBeenCalledWith(1);
+	});
+
+	it("should never create a config file — these commands must not write to the project", async () => {
+		mockPaths({ compiledConfig: false, worker: false });
+		vi.mocked(findOpenNextConfig).mockReturnValue(undefined);
+
+		await expect(retrieveCompiledConfig()).rejects.toThrowError("process.exit");
+
+		expect(askConfirmation).not.toHaveBeenCalled();
+		expect(createOpenNextConfigFile).not.toHaveBeenCalled();
 	});
 });
