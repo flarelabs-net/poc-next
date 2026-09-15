@@ -59,6 +59,7 @@
 		"cloudflare": "^4.4.1",
 		"comment-json": "^4.5.1",
 		"enquirer": "^2.4.1",
+		"esbuild": "catalog:",
 		"glob": "catalog:",
 		"ts-tqdm": "^0.8.6",
 		"yargs": "catalog:"
@@ -73,7 +74,6 @@
 		"@types/rclone.js": "^0.6.1",
 		"@types/yargs": "catalog:",
 		"diff": "^8.0.2",
-		"esbuild": "catalog:",
 		"eslint": "catalog:",
 		"eslint-plugin-import": "catalog:",
 		"eslint-plugin-simple-import-sort": "catalog:",
